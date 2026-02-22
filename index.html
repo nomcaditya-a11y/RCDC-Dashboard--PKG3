@@ -1,141 +1,203 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RCDC Performance Dashboard</title>
-  <link rel="stylesheet" href="css/styles.css">
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genus Power RCDC Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div class="app" id="app">
-    <header class="header glass">
-      <div class="header-left">
-        <div class="logo">⚡ <span class="title">RCDC Performance Dashboard</span></div>
-        <div class="date" id="current-date">—</div>
-      </div>
-      <div class="header-right">
-        <div class="live"><span class="pulse"></span> Live</div>
-        <button id="theme-toggle" class="icon-btn" aria-label="Toggle theme">🌙</button>
-      </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <header class="top-nav">
+      <div class="logo-area">
+            <img src="js/logo.webp" alt="Logo" class="dashboard-logo">
+            <h1>Reconnection Disconnection for CSPDCL <span>(PKG-1 & PKG-3)</span></h1>
+            <div class="pkg-switcher">
+                <button id="btn-pkg1" class="pkg-btn active" onclick="switchPackage('pkg1')">PKG-1</button>
+                <button id="btn-pkg3" class="pkg-btn" onclick="switchPackage('pkg3')">PKG-3</button>
+            </div>
+            <button onclick="refreshData()" class="btn-secondary refresh-btn" title="Refresh Data">🔄 Refresh</button>
+            
+            <button id="theme-btn" onclick="toggleTheme()" class="btn-secondary refresh-btn" title="Toggle Dark Mode">🌙</button>
+        </div>
+        <div id="connection-status" class="status-badge">🟡 Connecting...</div>
     </header>
 
-    <div class="filters sticky glass" id="filters">
-      <div class="filter-row">
-        <select id="filter-region">
-          <option value="all">All Regions</option>
-          <option value="north">North</option>
-          <option value="south">South</option>
-          <option value="east">East</option>
-        </select>
-        <select id="filter-status">
-          <option value="all">All Status</option>
-          <option value="reconnected">Reconnected</option>
-          <option value="disconnected">Disconnected</option>
-          <option value="pending">Pending</option>
-        </select>
-        <select id="filter-comm">
-          <option value="all">Communication</option>
-          <option value="comm">Communicating</option>
-          <option value="noncomm">Non-Communicating</option>
-        </select>
-        <select id="filter-circle" class="hidden">
-          <option value="all">All Circles</option>
-        </select>
+    <div class="container">
+        <section class="box global-filters">
+            <div class="filter-grid">
+                <div class="input-group">
+                    <label>Region</label>
+                    <select id="filter-region"><option value="ALL">All</option></select>
+                </div>
+                <div class="input-group">
+                    <label>Circle</label>
+                    <select id="filter-circle"><option value="ALL">All</option></select>
+                </div>
+                <div class="input-group">
+                    <label>Division</label>
+                    <select id="filter-division"><option value="ALL">All</option></select>
+                </div>
+                <div class="input-group">
+                    <label>Zone/DC</label>
+                    <select id="filter-zone"><option value="ALL">All</option></select>
+                </div>
+                
+                <div class="input-group date-group">
+                    <label>Disconnection Date Range</label>
+                    <div class="date-inputs">
+                        <input type="date" id="filter-start">
+                        <span>to</span>
+                        <input type="date" id="filter-end">
+                    </div>
+                </div>
+                <span> </span>
+                <div class="btn-group">
+                    <button id="apply-filters" class="btn-primary">Apply Filters</button>
+                    <button id="reset-filters" class="btn-secondary">Reset</button>
+                </div>
+            </div>
+        </section>
 
-        <div class="date-range">
-          <input type="date" id="start-date">
-          <span class="dash">—</span>
-          <input type="date" id="end-date">
-        </div>
+        <section class="kpi-grid">
+            <div class="card kpi-card border-blue" onclick="downloadKPIData('total')" title="Click to download CSV">
+                <p class="kpi-title">Total Disconnection</p>
+                <h3 id="kpi-total" class="kpi-value">0</h3>
+                <div class="kpi-sub-stats" id="sub-total"></div>
+            </div>
+            <div class="card kpi-card border-green" onclick="downloadKPIData('reconnected')" title="Click to download CSV">
+                <p class="kpi-title">Reconnected</p>
+                <h3 id="kpi-reconnected" class="kpi-value text-green">0</h3>
+                <div class="kpi-sub-stats" id="sub-recon"></div>
+            </div>
+            <div class="card kpi-card border-red" onclick="downloadKPIData('disconnected')" title="Click to download CSV">
+                <p class="kpi-title">Still Disconnected</p>
+                <h3 id="kpi-disconnected" class="kpi-value text-red">0</h3>
+                <div class="kpi-sub-stats" id="sub-disc"></div>
+            </div>
+            <div class="card kpi-card border-yellow" onclick="downloadKPIData('pending')" title="Click to download CSV">
+                <p class="kpi-title">Pending</p>
+                <h3 id="kpi-pending" class="kpi-value text-yellow">0</h3>
+                <div class="kpi-sub-stats" id="sub-pend"></div>
+            </div>
+           <div class="card kpi-card border-orange" onclick="downloadKPIData('today-disc')" title="Click to download CSV">
+                <p class="kpi-title">Today Disconnected</p>
+                <h3 id="kpi-today-disc" class="kpi-value text-orange">0</h3>
+                <div class="kpi-sub-stats" id="sub-today-disc"></div>
+            </div>
 
-        <input id="search" placeholder="Search consumer name / ID" />
+            <div class="card kpi-card border-purple" onclick="downloadKPIData('today-recon')" title="Click to download CSV">
+                <p class="kpi-title">Today Reconnected</p>
+                <h3 id="kpi-today-recon" class="kpi-value text-purple">0</h3>
+                <div class="kpi-sub-stats" id="sub-today-recon"></div>
+            </div>
+        </section>
 
-        <button id="refresh-btn" class="btn">Refresh <span id="refresh-spinner" class="spinner hidden"></span></button>
-      </div>
+        <section class="box" id="export-trend">
+            <div class="box-header">
+                <div class="section-title title-yellow">Disconnection vs Reconnection Trends</div>
+                <div class="export-btns">
+                    <button onclick="exportBoxData('trend', 'csv')">CSV</button>
+                    <button onclick="exportBoxData('trend', 'pdf', 'export-trend')">PDF</button>
+                </div>
+            </div>
+            <div class="canvas-wrapper" style="height: 400px;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </section>
+
+        <section class="charts-grid">
+            <div class="box chart-box" id="export-region">
+                <div class="box-header">
+                    <div class="section-title title-blue" id="dynamic-chart-title">Region Wise Disconnection</div>
+                    <div class="export-btns">
+                        <button onclick="exportBoxData('region', 'csv')">CSV</button>
+                        <button onclick="exportBoxData('region', 'pdf', 'export-region')">PDF</button>
+                    </div>
+                </div>
+                <div class="canvas-wrapper"><canvas id="regionChart"></canvas></div>
+            </div>
+
+            <div class="box chart-box" id="export-comm">
+                <div class="box-header">
+                    <div class="section-title title-red">Still Disconnected Analysis - Comm Status</div>
+                    <div class="export-btns">
+                        <button onclick="exportBoxData('comm', 'csv')">CSV</button>
+                        <button onclick="exportBoxData('comm', 'pdf', 'export-comm')">PDF</button>
+                    </div>
+                </div>
+                <div class="canvas-wrapper"><canvas id="commStatusChart"></canvas></div>
+            </div>
+        </section>
+
+        <section class="tables-grid">
+            <div class="box table-box" id="export-prog">
+                <div class="box-header">
+                    <div class="section-title title-green" id="dynamic-progress-title">DCRC Progress</div>
+                    <div class="export-btns">
+                        <button onclick="exportBoxData('progress', 'csv')">CSV</button>
+                        <button onclick="exportBoxData('progress', 'pdf', 'export-prog')">PDF</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table" id="progress-table">
+                        <thead></thead><tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="box table-box" id="export-aging">
+                <div class="box-header">
+                    <div class="section-title title-orange" id="dynamic-aging-title">Aging Analysis</div>
+                    <div class="export-btns">
+                        <button onclick="exportBoxData('aging', 'csv')">CSV</button>
+                        <button onclick="exportBoxData('aging', 'pdf', 'export-aging')">PDF</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table" id="aging-table">
+                        <thead></thead><tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="box map-section" id="export-map">
+            <div class="box-header">
+                <div class="section-title title-purple">Geographical Meter Distribution</div>
+            </div>
+            <div class="map-controls">
+                <div class="map-filter">
+                    <label>Zone:</label>
+                    <select id="map-zone-filter"><option value="ALL">All Available Zones</option></select>
+                </div>
+                <div class="map-filter">
+                    <label>Aging:</label>
+                    <select id="map-aging-filter"><option value="ALL">All Available Aging</option></select>
+                </div>
+                <div class="map-filter">
+                    <label>Comm Status:</label>
+                    <select id="map-comm-filter">
+                        <option value="ALL">All</option>
+                        <option value="NonComm" selected>Non-Communicating</option>
+                        <option value="Comm">Communicating</option>
+                    </select>
+                </div>
+            </div>
+            <div id="map" class="modern-map"></div>
+        </section>
+        
     </div>
-    <div id="fetch-status" class="fetch-status hidden"></div>
-    <style>
-      .fetch-status .retry{margin-left:12px;background:transparent;border:0;color:inherit;font-weight:700;cursor:pointer}
-      .fetch-status .preview{display:block;margin-top:8px;font-size:12px;opacity:0.9}
-    </style>
 
-    <main class="main">
-      <section class="kpis" id="kpi-cards">
-        <!-- KPI cards populated by JS -->
-      </section>
-
-      <section class="charts">
-        <div class="row two-col">
-          <div class="card glass chart-card">
-            <h3>Region-wise: Reconnected vs Disconnected</h3>
-            <canvas id="regionChart"></canvas>
-          </div>
-          <div class="card glass chart-card">
-            <h3>Status Distribution</h3>
-            <canvas id="statusChart"></canvas>
-            <div id="status-legend" class="legend"></div>
-          </div>
-        </div>
-
-        <div class="row full-width">
-          <div class="card glass chart-card">
-            <h3>Daily Reconnection Trend (last 14 days)</h3>
-            <canvas id="trendChart"></canvas>
-          </div>
-        </div>
-      </section>
-
-      <section class="tables two-col">
-        <div class="card glass table-card">
-          <h3>Division-wise Status</h3>
-          <table id="division-table">
-            <thead>
-              <tr>
-                <th data-sort="division">Division Name</th>
-                <th data-sort="total">Total</th>
-                <th data-sort="reconnected">Reconnected</th>
-                <th data-sort="disconnected">Still Disconnected</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <div class="card glass table-card">
-          <h3>Circle-wise Status</h3>
-          <table id="circle-table">
-            <thead>
-              <tr>
-                <th data-sort="circle">Circle Name</th>
-                <th data-sort="total">Total</th>
-                <th data-sort="reconnected">Reconnected</th>
-                <th data-sort="disconnected">Still Disconnected</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="tables single-col">
-        <div class="card glass actions-card">
-          <h3>Priority Actions</h3>
-          <div id="priority-cards" class="priority-cards">
-            <!-- action cards -->
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="footer glass">
-      <div id="last-updated">Last updated: —</div>
-      <div>Data source: Google Sheets API</div>
-      <div>© 2026 | Built with ❤️</div>
-    </footer>
-  </div>
-
-  <script type="module" src="js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>
